@@ -7,6 +7,7 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/filter/meta/gvk"
 	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/labels"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
+	"github.com/k8s-manifest-kit/pkg/util/cache"
 	jqmatcher "github.com/lburgazzoli/gomega-matchers/pkg/matchers/jq"
 
 	corev1 "k8s.io/api/core/v1"
@@ -520,14 +521,13 @@ func TestCacheKeyFunc(t *testing.T) {
 		}
 
 		// Custom cache key function that always returns the same key
-		customKeyFunc := func(_ yaml.YAMLSpec) string {
+		customKeyFunc := func(_ any) string {
 			return "constant-key"
 		}
 
 		renderer, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "*.yaml"}},
-			yaml.WithCache(),
-			yaml.WithCacheKeyFunc(customKeyFunc),
+			yaml.WithCache(cache.WithKeyFunc(customKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -539,8 +539,7 @@ func TestCacheKeyFunc(t *testing.T) {
 		// Create second renderer with different path but same custom key function
 		renderer2, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "pod.yaml"}},
-			yaml.WithCache(),
-			yaml.WithCacheKeyFunc(customKeyFunc),
+			yaml.WithCache(cache.WithKeyFunc(customKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -551,16 +550,24 @@ func TestCacheKeyFunc(t *testing.T) {
 		g.Expect(result2).To(HaveLen(1))
 	})
 
-	t.Run("should use FastCacheKey", func(t *testing.T) {
+	t.Run("should use custom path-only cache key function", func(t *testing.T) {
 		g := NewWithT(t)
 		testFS := fstest.MapFS{
 			"pod.yaml": &fstest.MapFile{Data: []byte(podYAML)},
 		}
 
+		// Path-only cache key function (equivalent to old FastCacheKey)
+		pathOnlyKeyFunc := func(key any) string {
+			if spec, ok := key.(yaml.YAMLSpec); ok {
+				return spec.Path
+			}
+
+			return ""
+		}
+
 		renderer, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "*.yaml"}},
-			yaml.WithCache(),
-			yaml.WithCacheKeyFunc(yaml.FastCacheKey()),
+			yaml.WithCache(cache.WithKeyFunc(pathOnlyKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -578,17 +585,17 @@ func TestCacheKeyFunc(t *testing.T) {
 		g.Expect(result2[0]).To(Equal(result1[0]))
 	})
 
-	t.Run("should use PathOnlyCacheKey", func(t *testing.T) {
+	t.Run("should use default cache behavior with path-based keys", func(t *testing.T) {
 		g := NewWithT(t)
 		testFS := fstest.MapFS{
 			"pod.yaml":       &fstest.MapFile{Data: []byte(podYAML)},
 			"configmap.yaml": &fstest.MapFile{Data: []byte(configMapYAML)},
 		}
 
+		// Using default key function (which defaults to path-based for YAML)
 		renderer, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "*.yaml"}},
 			yaml.WithCache(),
-			yaml.WithCacheKeyFunc(yaml.PathOnlyCacheKey()),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 

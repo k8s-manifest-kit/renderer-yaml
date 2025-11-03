@@ -4,8 +4,6 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 	"github.com/k8s-manifest-kit/pkg/util"
 	"github.com/k8s-manifest-kit/pkg/util/cache"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // RendererOption is a generic option for RendererOptions.
@@ -19,15 +17,11 @@ type RendererOptions struct {
 	// Transformers are post-processing transformers applied after YAML rendering.
 	Transformers []types.Transformer
 
-	// Cache is a custom cache implementation for render results.
-	Cache cache.Interface[[]unstructured.Unstructured]
+	// CacheOptions holds cache configuration. nil = caching disabled.
+	CacheOptions *cache.Options
 
 	// SourceAnnotations enables automatic addition of source tracking annotations.
 	SourceAnnotations bool
-
-	// CacheKeyFunc customizes how cache keys are generated from YAML specifications.
-	// If nil, DefaultCacheKey is used.
-	CacheKeyFunc CacheKeyFunc
 }
 
 // ApplyTo applies the renderer options to the target configuration.
@@ -36,12 +30,11 @@ func (opts RendererOptions) ApplyTo(target *RendererOptions) {
 	target.Transformers = opts.Transformers
 	target.SourceAnnotations = opts.SourceAnnotations
 
-	if opts.Cache != nil {
-		target.Cache = opts.Cache
-	}
-
-	if opts.CacheKeyFunc != nil {
-		target.CacheKeyFunc = opts.CacheKeyFunc
+	if opts.CacheOptions != nil {
+		if target.CacheOptions == nil {
+			target.CacheOptions = &cache.Options{}
+		}
+		opts.CacheOptions.ApplyTo(target.CacheOptions)
 	}
 }
 
@@ -66,9 +59,20 @@ func WithTransformer(transformer types.Transformer) RendererOption {
 // WithCache enables render result caching with the specified options.
 // If no options are provided, uses default TTL of 5 minutes.
 // By default, caching is NOT enabled.
+//
+// Example:
+//
+//	yaml.WithCache(cache.WithTTL(10*time.Minute))
+//	yaml.WithCache(cache.WithTTL(5*time.Minute), cache.WithKeyFunc(myKeyFunc))
 func WithCache(opts ...cache.Option) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(rendererOpts *RendererOptions) {
-		rendererOpts.Cache = cache.NewRenderCache(opts...)
+		if rendererOpts.CacheOptions == nil {
+			rendererOpts.CacheOptions = &cache.Options{}
+		}
+
+		for _, opt := range opts {
+			opt.ApplyTo(rendererOpts.CacheOptions)
+		}
 	})
 }
 
@@ -79,20 +83,5 @@ func WithCache(opts ...cache.Option) RendererOption {
 func WithSourceAnnotations(enabled bool) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
 		opts.SourceAnnotations = enabled
-	})
-}
-
-// WithCacheKeyFunc sets a custom cache key generation function.
-// Built-in options: DefaultCacheKey (default), FastCacheKey, PathOnlyCacheKey.
-//
-// For YAML renderer, DefaultCacheKey and FastCacheKey are functionally equivalent
-// since YAML files are static (no dynamic values). FastCacheKey is recommended for simplicity.
-//
-// Example:
-//
-//	yaml.WithCacheKeyFunc(yaml.FastCacheKey())
-func WithCacheKeyFunc(fn CacheKeyFunc) RendererOption {
-	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
-		opts.CacheKeyFunc = fn
 	})
 }
