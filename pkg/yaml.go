@@ -50,6 +50,7 @@ func New(inputs []Source, opts ...RendererOption) (*Renderer, error) {
 	rendererOpts := RendererOptions{
 		Filters:      make([]types.Filter, 0),
 		Transformers: make([]types.Transformer, 0),
+		ContentHash:  true,
 	}
 
 	for _, opt := range opts {
@@ -204,6 +205,12 @@ func (r *Renderer) loadYAMLFile(fsys fs.FS, path string) ([]unstructured.Unstruc
 			annotations[types.AnnotationSourceFile] = path
 
 			objects[i].SetAnnotations(annotations)
+		}
+	}
+
+	if r.opts.ContentHash {
+		for i := range objects {
+			types.SetContentHash(&objects[i])
 		}
 	}
 
