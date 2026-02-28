@@ -17,6 +17,12 @@ type RendererOptions struct {
 	// Transformers are post-processing transformers applied after YAML rendering.
 	Transformers []types.Transformer
 
+	// PostRenderers are renderer-specific post-renderers applied during Process().
+	PostRenderers []types.PostRenderer
+
+	// SourceSelectors are renderer-specific source selectors evaluated before rendering each source.
+	SourceSelectors []types.SourceSelector
+
 	// CacheOptions holds cache configuration. nil = caching disabled.
 	CacheOptions *cache.Options
 
@@ -32,6 +38,8 @@ type RendererOptions struct {
 func (opts RendererOptions) ApplyTo(target *RendererOptions) {
 	target.Filters = opts.Filters
 	target.Transformers = opts.Transformers
+	target.PostRenderers = append(target.PostRenderers, opts.PostRenderers...)
+	target.SourceSelectors = append(target.SourceSelectors, opts.SourceSelectors...)
 	target.SourceAnnotations = opts.SourceAnnotations
 	target.ContentHash = opts.ContentHash
 
@@ -44,8 +52,6 @@ func (opts RendererOptions) ApplyTo(target *RendererOptions) {
 }
 
 // WithFilter adds a renderer-specific filter to this YAML renderer's processing chain.
-// Renderer-specific filters are applied during Process(), before results are returned to the engine.
-// For engine-level filtering applied to all renderers, use engine.WithFilter.
 func WithFilter(filter types.Filter) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
 		opts.Filters = append(opts.Filters, filter)
@@ -53,22 +59,28 @@ func WithFilter(filter types.Filter) RendererOption {
 }
 
 // WithTransformer adds a renderer-specific transformer to this YAML renderer's processing chain.
-// Renderer-specific transformers are applied during Process(), before results are returned to the engine.
-// For engine-level transformation applied to all renderers, use engine.WithTransformer.
 func WithTransformer(transformer types.Transformer) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
 		opts.Transformers = append(opts.Transformers, transformer)
 	})
 }
 
+// WithPostRenderer adds a renderer-specific post-renderer to this YAML renderer's processing chain.
+func WithPostRenderer(p types.PostRenderer) RendererOption {
+	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
+		opts.PostRenderers = append(opts.PostRenderers, p)
+	})
+}
+
+// WithSourceSelector adds a source selector to this YAML renderer.
+// Use source.Selector[yaml.Source] to build type-safe selectors.
+func WithSourceSelector(s types.SourceSelector) RendererOption {
+	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
+		opts.SourceSelectors = append(opts.SourceSelectors, s)
+	})
+}
+
 // WithCache enables render result caching with the specified options.
-// If no options are provided, uses default TTL of 5 minutes.
-// By default, caching is NOT enabled.
-//
-// Example:
-//
-//	yaml.WithCache(cache.WithTTL(10*time.Minute))
-//	yaml.WithCache(cache.WithTTL(5*time.Minute), cache.WithKeyFunc(myKeyFunc))
 func WithCache(opts ...cache.Option) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(rendererOpts *RendererOptions) {
 		if rendererOpts.CacheOptions == nil {
@@ -82,9 +94,6 @@ func WithCache(opts ...cache.Option) RendererOption {
 }
 
 // WithSourceAnnotations enables or disables automatic addition of source tracking annotations.
-// When enabled, the renderer adds metadata annotations to track the source type and file path.
-// Annotations added: k8s-manifest-kit.io/source.type, source.file.
-// Default: false (disabled).
 func WithSourceAnnotations(enabled bool) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
 		opts.SourceAnnotations = enabled
@@ -92,8 +101,6 @@ func WithSourceAnnotations(enabled bool) RendererOption {
 }
 
 // WithContentHash enables or disables automatic addition of a SHA-256 content hash annotation.
-// When enabled, each rendered resource gets an annotation with a hash of its content.
-// Default: true (enabled).
 func WithContentHash(enabled bool) RendererOption {
 	return util.FunctionalOption[RendererOptions](func(opts *RendererOptions) {
 		opts.ContentHash = enabled

@@ -35,6 +35,10 @@ type Source struct {
 	// Path specifies the glob pattern to match YAML files.
 	// Only .yaml and .yml files are processed. Examples: "manifests/*.yaml", "**/*.yml"
 	Path string
+
+	// PostRenderers are source-specific post-renderers applied to this source's output
+	// before combining with other sources.
+	PostRenderers []types.PostRenderer
 }
 
 // Renderer handles YAML file rendering operations.
@@ -79,29 +83,40 @@ func New(inputs []Source, opts ...RendererOption) (*Renderer, error) {
 
 // Process executes the rendering logic for all configured inputs.
 // Render-time values are ignored by the YAML renderer as it does not support templates.
-func (r *Renderer) Process(ctx context.Context, _ map[string]any) ([]unstructured.Unstructured, error) {
+func (r *Renderer) Process(ctx context.Context, _ types.Values) ([]unstructured.Unstructured, error) {
 	allObjects := make([]unstructured.Unstructured, 0)
 
 	for _, holder := range r.inputs {
+		selected, err := pipeline.ApplySourceSelectors(ctx, holder.Source, r.opts.SourceSelectors)
+		if err != nil {
+			return nil, fmt.Errorf("source selector error for YAML pattern %s: %w", holder.Path, err)
+		}
+
+		if !selected {
+			continue
+		}
+
 		objects, err := r.renderSingle(ctx, holder)
 		if err != nil {
 			return nil, fmt.Errorf("error rendering YAML pattern %s: %w", holder.Path, err)
 		}
 
-		// Apply renderer-level filters and transformers per-source for better error context
-		transformed, err := pipeline.Apply(ctx, objects, r.opts.Filters, r.opts.Transformers)
+		objects, err = pipeline.ApplyPostRenderers(ctx, objects, holder.PostRenderers)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"error applying filters/transformers to YAML pattern %s: %w",
-				holder.Path,
-				err,
-			)
+			return nil, fmt.Errorf("source post-renderer error for YAML pattern %s: %w", holder.Path, err)
 		}
 
-		allObjects = append(allObjects, transformed...)
+		allObjects = append(allObjects, objects...)
 	}
 
-	return allObjects, nil
+	chain := types.BuildPostRendererChain(r.opts.Filters, r.opts.Transformers, r.opts.PostRenderers)
+
+	result, err := pipeline.ApplyPostRenderers(ctx, allObjects, chain)
+	if err != nil {
+		return nil, fmt.Errorf("renderer post-renderer error: %w", err)
+	}
+
+	return result, nil
 }
 
 // Name returns the renderer type identifier.
