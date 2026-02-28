@@ -244,7 +244,6 @@ fmt.Errorf("error applying filters/transformers to YAML pattern %s: %w", path, e
 
 Potential improvements (not currently implemented):
 - Streaming YAML parsing for large files
-- Parallel file loading
 - Incremental cache updates
 - File watcher integration for hot reload
 - Validation against Kubernetes schemas
