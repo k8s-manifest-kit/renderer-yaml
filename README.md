@@ -1,12 +1,8 @@
-# renderer-yaml
+# YAML Renderer
 
-YAML manifest renderer for the k8s-manifest-kit ecosystem.
-
-Part of the [k8s-manifest-kit](https://github.com/k8s-manifest-kit) organization.
-
-## Overview
-
-The YAML renderer provides programmatic loading and processing of Kubernetes YAML manifest files. It supports glob pattern matching, multi-document YAML files, filtering, transformation, and caching.
+`renderer-yaml` loads YAML manifests from an `io/fs` filesystem and renders
+single- or multi-document YAML files. Paths may be individual files or glob
+patterns.
 
 ## Installation
 
@@ -14,57 +10,28 @@ The YAML renderer provides programmatic loading and processing of Kubernetes YAM
 go get github.com/k8s-manifest-kit/renderer-yaml
 ```
 
-## Quick Start
+## Quick start
 
 ```go
-package main
-
-import (
-    "context"
-    "os"
-    
-    yaml "github.com/k8s-manifest-kit/renderer-yaml/pkg"
-)
-
-func main() {
-    // Create engine with YAML renderer
-    e, err := yaml.NewEngine(yaml.Source{
-        FS:   os.DirFS("/path/to/manifests"),
-        Path: "*.yaml",
-    })
-    if err != nil {
-        panic(err)
-    }
-    
-    // Render manifests
-    objects, err := e.Render(context.Background())
-    if err != nil {
-        panic(err)
-    }
-    
-    // Process objects...
+e, err := yaml.NewEngine(yaml.Source{
+    FS:   os.DirFS("."),
+    Path: "manifests/*.yaml",
+})
+if err != nil {
+    return err
 }
+
+objects, err := e.Render(ctx)
 ```
 
-## Features
+YAML documents are rendered in sorted path and document order. Only `.yaml`
+and `.yml` files are accepted. Source selectors, post-renderers, source
+annotations, content hashes, and the shared cache interface are supported;
+render values do not modify YAML content.
 
-- **Glob Pattern Matching**: Load multiple files using patterns like `*.yaml` or `manifests/**/*.yml`
-- **Multi-Document YAML**: Automatically handles files with multiple YAML documents separated by `---`
-- **Filesystem Abstraction**: Works with any `fs.FS` implementation (os.DirFS, embed.FS, testing/fstest)
-- **Caching**: Optional TTL-based caching to avoid redundant file reads
-- **Filtering & Transformation**: Apply filters and transformers at render time
-- **Source Tracking**: Optional annotations to track which file each object came from
-
-## Documentation
-
-- [Design Documentation](docs/design.md) - Architecture and design decisions
-- [Development Guide](docs/development.md) - Development workflow and conventions
-- [CLAUDE.md](CLAUDE.md) - AI assistant reference guide
-
-## Contributing
-
-Contributions are welcome! Please see our [contributing guidelines](https://github.com/k8s-manifest-kit/docs/blob/main/CONTRIBUTING.md).
+See [`docs/design.md`](docs/design.md), [`docs/development.md`](docs/development.md),
+and [`AGENTS.md`](AGENTS.md).
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE).
