@@ -22,9 +22,17 @@ Source annotations are opt-in. Content hashes use
 
 ## Cache
 
-The default cache key is the source path represented by the renderer's
-`YAMLSpec`. Callers can customize cache behavior with the shared cache API,
-for example `WithCache(cache.WithKeyFunc(fn))`; there is no renderer-specific
-cache-key option.
+Caching is disabled unless `WithCache` is supplied. Every registered source
+gets its own cache instance, so sources that share a path (or a custom cache
+key) never return each other's cached objects; within one source, the default
+cache key is the source path represented by the renderer's `YAMLSpec`.
+Callers can customize cache behavior with the shared cache API, for example
+`WithCache(cache.WithKeyFunc(fn))`; there is no renderer-specific cache-key
+option.
+
+A cache miss rereads the matched files from the source filesystem. Cached
+entries live until the configured TTL expires, so renders may return stale
+content after the underlying files change; there is no content-sensitive
+invalidation.
 
 See [`../AGENTS.md`](../AGENTS.md) and [`development.md`](development.md).

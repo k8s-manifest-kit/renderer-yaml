@@ -4,12 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/k8s-manifest-kit/pkg/util/cache"
 	"github.com/k8s-manifest-kit/pkg/util/errors"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // sourceHolder wraps a Source with internal state for consistency with other renderers.
 type sourceHolder struct {
 	Source
+
+	// cache is the source-private render cache. Each registered source gets its
+	// own instance so sources that share a path (or a custom cache key) never
+	// return each other's cached objects.
+	cache cache.Interface[[]unstructured.Unstructured]
 }
 
 // Validate checks if the Source configuration is valid.

@@ -10,7 +10,6 @@ import (
 
 	"github.com/k8s-manifest-kit/engine/pkg/pipeline"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
-	"github.com/k8s-manifest-kit/pkg/util/cache"
 	"github.com/k8s-manifest-kit/pkg/util/k8s"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,7 +50,6 @@ type SourceSelector = func(ctx context.Context, source Source) (bool, error)
 type Renderer struct {
 	inputs []*sourceHolder
 	opts   RendererOptions
-	cache  cache.Interface[[]unstructured.Unstructured]
 }
 
 // New creates a new YAML Renderer with the given inputs and options.
@@ -75,12 +73,15 @@ func New(inputs []Source, opts ...RendererOption) (*Renderer, error) {
 		if err := holders[i].Validate(); err != nil {
 			return nil, fmt.Errorf("invalid source at index %d: %w", i, err)
 		}
+
+		// Each source gets its own cache instance built from the same options,
+		// so cache entries are partitioned per source regardless of the key function.
+		holders[i].cache = newCache(rendererOpts.CacheOptions)
 	}
 
 	r := &Renderer{
 		inputs: holders,
 		opts:   rendererOpts,
-		cache:  newCache(rendererOpts.CacheOptions),
 	}
 
 	return r, nil
@@ -136,11 +137,11 @@ func (r *Renderer) renderSingle(_ context.Context, holder *sourceHolder) ([]unst
 	}
 
 	// Check cache (if enabled)
-	if r.cache != nil {
+	if holder.cache != nil {
 		// ensure objects are evicted
-		r.cache.Sync()
+		holder.cache.Sync()
 
-		if cached, found := r.cache.Get(spec); found {
+		if cached, found := holder.cache.Get(spec); found {
 			r.addRenderOrigin(cached, types.RenderOriginCache)
 
 			return cached, nil
@@ -170,8 +171,8 @@ func (r *Renderer) renderSingle(_ context.Context, holder *sourceHolder) ([]unst
 	}
 
 	// Cache result (if enabled)
-	if r.cache != nil {
-		r.cache.Set(spec, result)
+	if holder.cache != nil {
+		holder.cache.Set(spec, result)
 	}
 	r.addRenderOrigin(result, types.RenderOriginLive)
 
