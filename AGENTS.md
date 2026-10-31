@@ -27,10 +27,14 @@ Run commands from this directory:
 
 ```bash
 make test
+make test/race
 make fmt
 make lint
 make lint/fix
 make check
 ```
+
+`make check` runs lint and vulnerability checks only; it does not run tests
+or formatting.
 
 Use `testing/fstest.MapFS` for unit tests, checked-in fixtures under `config/test/manifests`, Gomega assertions, and `t.Context()`.
