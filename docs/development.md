@@ -28,6 +28,29 @@ for `make test` or `make test/race`, and formatting is a separate target.
   selectors — runs inside `Process` and may overlap on a shared renderer.
   It must be safe for concurrent use; the renderer does not synchronize it.
 
+### Multiline strings
+
+- Declare every multiline string — fixtures, manifests, templates, and
+  expected output — as one descriptive, standalone, package-level
+  `const name =` with a raw string literal.
+- Never embed multiline string literals in function or method bodies,
+  and never declare them as function-local constants.
+- Never group multiline constants in `const (...)`. Related single-line
+  scalar constants can still be grouped, and single-line inline strings
+  are unaffected.
+- Keep large literal content separate from execution logic for
+  readability. Preserve meaningful content indentation; the declaration
+  layout must not introduce unintended bytes.
+- A function may format the named template into a local variable. The
+  prohibition concerns where the literal is declared, not where its
+  string value is used.
+
+```go
+const fixtureYAML = `apiVersion: v1
+kind: ConfigMap
+`
+```
+
 ## Testing
 
 Cover filesystem errors, extension filtering, glob ordering, multi-document
