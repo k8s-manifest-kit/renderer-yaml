@@ -16,6 +16,20 @@ make check
 `make check` runs lint and vulnerability checks only; it is not a substitute
 for `make test` or `make test/race`, and formatting is a separate target.
 
+## Package layout
+
+- `pkg/yaml.go` — source model and render pipeline.
+- `pkg/yaml_option.go` — renderer options and defaults.
+- `pkg/yaml_support.go` — shared implementation helpers.
+- `pkg/yaml_cache.go` — output-cache construction and cache keys (still flat
+  in the renderer package).
+- `pkg/engine.go` — the `NewEngine` convenience constructor.
+
+Renderer options are typed by the shared
+`github.com/k8s-manifest-kit/pkg/util/option` package. The layout follows
+the shared [`project-layout.md`](../../docs/project-layout.md) convention
+(workspace navigation).
+
 ## Code conventions
 
 - Wrap errors with the failing operation and path context using `%w`, and
