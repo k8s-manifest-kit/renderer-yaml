@@ -51,6 +51,31 @@ kind: ConfigMap
 `
 ```
 
+### Test layout
+
+- Colocate tests with implementation. A `test/` subdirectory is a separate Go
+  package, not a cosmetic folder; use existing package boundaries.
+- Organize larger suites by concern using `<component>_<concern>_test.go`;
+  retain a cohesive `<component>_test.go` for core API behavior. Use
+  `_metadata_test.go`, `_cache_test.go`, `_values_test.go`, and
+  `_concurrency_test.go` where relevant, not as mandatory files for every
+  package.
+- Place benchmarks in `<component>_benchmark_test.go`, in the same package
+  directory, retaining benchmark names and setup/timing behavior.
+- Put shared helpers in `<component>_support_test.go` and substantial
+  feature-specific fixture machinery in
+  `<component>_<concern>_support_test.go`. Small test-local helpers and
+  scenario assertions can remain beside their tests.
+- Support files contain helper/fixture/type declarations, not test, benchmark,
+  fuzz, or example entry points. `_support_test.go` is a naming convention;
+  only `_test.go` has Go's test-file significance.
+- Keep tests discoverable without excessive fragmentation: no hard line
+  limit, mandatory one-file-per-test rule, shared cross-repository harness,
+  fixture-storage migration, or automatic test-speed claim.
+- Preserve integration build tags; filenames alone do not exclude a test from
+  the offline suite. Offline cache/metrics interaction tests do not become
+  live integration tests because of their function names.
+
 ## Testing
 
 Cover filesystem errors, extension filtering, glob ordering, multi-document
@@ -77,7 +102,7 @@ source isolation, or output cloning.
   and asserting other results and later renders stay unmodified.
 - Source post-renderers are reapplied on every render, including cache
   hits; warm renders must still show per-source post-renderer effects.
-- Regression anchors: `TestCacheSourceIsolation` in `pkg/yaml_test.go` and
+- Regression anchors: `TestCacheSourceIsolation` in `pkg/yaml_cache_test.go` and
   `TestConcurrentRendering` in `pkg/yaml_concurrency_test.go`.
 
 See [`design.md`](design.md) and [`../AGENTS.md`](../AGENTS.md).
