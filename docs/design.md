@@ -23,7 +23,7 @@ Source annotations are opt-in. Content hashes use
 
 ## Cache
 
-Caching is disabled unless `WithCache` is supplied, in which case every
+Caching is disabled unless `WithCache` is supplied; without it, every
 render reads the source filesystem live. Every registered source gets its
 own cache instance, so sources that share a path (or a custom cache key)
 never return each other's cached objects; within one source, the default
