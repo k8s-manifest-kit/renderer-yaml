@@ -1,20 +1,18 @@
-package yaml
+package cache
 
 import (
-	"github.com/k8s-manifest-kit/pkg/util/cache"
+	utilcache "github.com/k8s-manifest-kit/pkg/util/cache"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // YAMLSpec contains the data used to generate cache keys for rendered YAML files.
-//
-//nolint:revive // Name matches pattern from other renderers (KustomizationSpec, TemplateSpec, ChartSpec)
 type YAMLSpec struct {
 	Path string
 }
 
-// newCache creates a cache instance with YAML-specific default KeyFunc.
-func newCache(opts *cache.Options) cache.Interface[[]unstructured.Unstructured] {
+// New creates a cache instance with YAML-specific default KeyFunc.
+func New(opts *utilcache.Options) utilcache.Interface[[]unstructured.Unstructured] {
 	if opts == nil {
 		return nil
 	}
@@ -28,9 +26,9 @@ func newCache(opts *cache.Options) cache.Interface[[]unstructured.Unstructured] 
 				return spec.Path
 			}
 
-			return cache.DefaultKeyFunc(key)
+			return utilcache.DefaultKeyFunc(key)
 		}
 	}
 
-	return cache.NewRenderCache(co)
+	return utilcache.NewRenderCache(co)
 }

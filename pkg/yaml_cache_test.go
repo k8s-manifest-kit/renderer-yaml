@@ -6,9 +6,10 @@ import (
 
 	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/labels"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
-	"github.com/k8s-manifest-kit/pkg/util/cache"
+	utilcache "github.com/k8s-manifest-kit/pkg/util/cache"
 
 	yaml "github.com/k8s-manifest-kit/renderer-yaml/pkg"
+	"github.com/k8s-manifest-kit/renderer-yaml/pkg/cache"
 
 	. "github.com/onsi/gomega"
 )
@@ -203,9 +204,9 @@ func TestCacheSourceIsolation(t *testing.T) {
 			"manifests/pod.yaml": &fstest.MapFile{Data: []byte(configMapYAML)},
 		}
 
-		var keyInputs []yaml.YAMLSpec
+		var keyInputs []cache.YAMLSpec
 		customKeyFunc := func(key any) string {
-			if spec, ok := key.(yaml.YAMLSpec); ok {
+			if spec, ok := key.(cache.YAMLSpec); ok {
 				keyInputs = append(keyInputs, spec)
 			}
 
@@ -217,7 +218,7 @@ func TestCacheSourceIsolation(t *testing.T) {
 				{FS: testFS1, Path: "manifests/*.yaml"},
 				{FS: testFS2, Path: "manifests/*.yaml"},
 			},
-			yaml.WithCache(cache.WithKeyFunc(customKeyFunc)),
+			yaml.WithCache(utilcache.WithKeyFunc(customKeyFunc)),
 			yaml.WithSourceAnnotations(true),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -367,7 +368,7 @@ func TestCacheKeyFunc(t *testing.T) {
 
 		renderer, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "*.yaml"}},
-			yaml.WithCache(cache.WithKeyFunc(customKeyFunc)),
+			yaml.WithCache(utilcache.WithKeyFunc(customKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -379,7 +380,7 @@ func TestCacheKeyFunc(t *testing.T) {
 		// Create second renderer with different path but same custom key function
 		renderer2, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "pod.yaml"}},
-			yaml.WithCache(cache.WithKeyFunc(customKeyFunc)),
+			yaml.WithCache(utilcache.WithKeyFunc(customKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -398,7 +399,7 @@ func TestCacheKeyFunc(t *testing.T) {
 
 		// Path-only cache key function (equivalent to old FastCacheKey)
 		pathOnlyKeyFunc := func(key any) string {
-			if spec, ok := key.(yaml.YAMLSpec); ok {
+			if spec, ok := key.(cache.YAMLSpec); ok {
 				return spec.Path
 			}
 
@@ -407,7 +408,7 @@ func TestCacheKeyFunc(t *testing.T) {
 
 		renderer, err := yaml.New(
 			[]yaml.Source{{FS: testFS, Path: "*.yaml"}},
-			yaml.WithCache(cache.WithKeyFunc(pathOnlyKeyFunc)),
+			yaml.WithCache(utilcache.WithKeyFunc(pathOnlyKeyFunc)),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 

@@ -17,7 +17,7 @@ The package is imported from `github.com/k8s-manifest-kit/renderer-yaml/pkg`.
 - `Source` contains `FS`, `Path`, and optional source-specific `PostRenderers`.
 - Options include filters, transformers, post-renderers, source selectors, caching, source annotations, and content hashes.
 
-The renderer uses `fs.Glob`, processes only `.yaml` and `.yml` files in sorted path and document order, and reports `ErrNoFilesMatched` when nothing matches. Render-time values are ignored. Caching is disabled unless `WithCache` is supplied; every registered source gets its own cache instance, whose default key is the `YAMLSpec` path, and callers can customize the underlying cache with `cache.WithKeyFunc`. Cache misses reread the source filesystem; entries live until the configured TTL expires.
+The renderer uses `fs.Glob`, processes only `.yaml` and `.yml` files in sorted path and document order, and reports `ErrNoFilesMatched` when nothing matches. Render-time values are ignored. Caching is disabled unless `WithCache` is supplied; every registered source gets its own cache instance, whose default key is the `cache.YAMLSpec` path (`github.com/k8s-manifest-kit/renderer-yaml/pkg/cache`), and callers can customize the underlying cache with the shared `utilcache.WithKeyFunc`. Cache misses reread the source filesystem; entries live until the configured TTL expires.
 
 Source annotations are disabled by default and include renderer type plus source file. Content hashes are enabled by default. Use shared annotation constants from `engine/pkg/types`.
 

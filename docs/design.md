@@ -27,12 +27,21 @@ Caching is disabled unless `WithCache` is supplied; without it, every
 render reads the source filesystem live. Every registered source gets its
 own cache instance, so sources that share a path (or a custom cache key)
 never return each other's cached objects; within one source, the default
-cache key is the source path represented by the renderer's `YAMLSpec`.
+cache key is the source path represented by `cache.YAMLSpec` from
+`github.com/k8s-manifest-kit/renderer-yaml/pkg/cache` (constructed with
+`cache.New`).
 Callers can customize cache behavior with the shared cache API, for example
-`WithCache(cache.WithKeyFunc(fn))`; there is no renderer-specific cache-key
+`WithCache(utilcache.WithKeyFunc(fn))` (importing
+`github.com/k8s-manifest-kit/pkg/util/cache` as `utilcache`); there is no
+renderer-specific cache-key
 option. Key functions only select entries within a single source's cache:
 a constant key cannot merge two sources, while within one source it
 deliberately collapses renders onto a single entry.
+
+Breaking change: `YAMLSpec` and the cache constructor moved from the root
+`yaml` package to `github.com/k8s-manifest-kit/renderer-yaml/pkg/cache`
+(`cache.YAMLSpec`, `cache.New`). The old root symbols are gone; key functions
+that type-asserted `yaml.YAMLSpec` must assert `cache.YAMLSpec` instead.
 
 When caching is enabled, the matched files are reread from the source
 filesystem only on a cache miss. Cached entries live until the configured

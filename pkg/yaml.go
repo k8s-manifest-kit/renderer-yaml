@@ -13,6 +13,8 @@ import (
 	"github.com/k8s-manifest-kit/pkg/util/k8s"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/k8s-manifest-kit/renderer-yaml/pkg/cache"
 )
 
 const rendererType = "yaml"
@@ -76,7 +78,7 @@ func New(inputs []Source, opts ...RendererOption) (*Renderer, error) {
 
 		// Each source gets its own cache instance built from the same options,
 		// so cache entries are partitioned per source regardless of the key function.
-		holders[i].cache = newCache(rendererOpts.CacheOptions)
+		holders[i].cache = cache.New(rendererOpts.CacheOptions)
 	}
 
 	r := &Renderer{
@@ -132,7 +134,7 @@ func (r *Renderer) Name() string {
 
 // renderSingle performs the rendering for a single YAML input.
 func (r *Renderer) renderSingle(_ context.Context, holder *sourceHolder) ([]unstructured.Unstructured, error) {
-	spec := YAMLSpec{
+	spec := cache.YAMLSpec{
 		Path: holder.Path,
 	}
 

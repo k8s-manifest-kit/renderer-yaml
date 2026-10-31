@@ -21,8 +21,9 @@ for `make test` or `make test/race`, and formatting is a separate target.
 - `pkg/yaml.go` — source model and render pipeline.
 - `pkg/yaml_option.go` — renderer options and defaults.
 - `pkg/yaml_support.go` — shared implementation helpers.
-- `pkg/yaml_cache.go` — output-cache construction and cache keys (still flat
-  in the renderer package).
+- `pkg/cache/` — `cache.New` and `cache.YAMLSpec` for output-cache
+  construction and cache keys
+  (`github.com/k8s-manifest-kit/renderer-yaml/pkg/cache`).
 - `pkg/engine.go` — the `NewEngine` convenience constructor.
 
 Renderer options are typed by the shared
@@ -110,7 +111,7 @@ source isolation, or output cloning.
   cache on later renders — rather than callback or call counts.
 - Sources are separated by cache instance, not by key: same-path sources on
   different filesystems must stay isolated even when a constant custom key
-  (`cache.WithKeyFunc`) is used. Key choice only affects entry reuse within
+  (`utilcache.WithKeyFunc`) is used. Key choice only affects entry reuse within
   one source, where deliberately reusing an entry is supported.
 - Prove output ownership by mutating a nested field of one returned result
   and asserting other results and later renders stay unmodified.
