@@ -190,9 +190,7 @@ func (r *Renderer) addRenderOrigin(
 		return
 	}
 
-	for i := range objects {
-		types.SetRenderOrigin(&objects[i], origin)
-	}
+	types.AnnotateObjects(objects, types.WithRenderOrigin(origin))
 }
 
 // loadYAMLFile loads and parses a single YAML file.
@@ -233,26 +231,21 @@ func (r *Renderer) loadYAMLFile(fsys fs.FS, path string) ([]unstructured.Unstruc
 		return nil, fmt.Errorf("failed to decode YAML: %w", err)
 	}
 
-	// Add source annotations if enabled
+	// Add source annotations and content hash
+	var opts []types.AnnotationOption
+
 	if r.opts.SourceAnnotations {
-		for i := range objects {
-			annotations := objects[i].GetAnnotations()
-			if annotations == nil {
-				annotations = make(map[string]string)
-			}
-
-			annotations[types.AnnotationSourceType] = rendererType
-			annotations[types.AnnotationSourceFile] = path
-
-			objects[i].SetAnnotations(annotations)
-		}
+		opts = append(opts, types.WithSourceAnnotations(map[string]string{
+			types.AnnotationSourceType: rendererType,
+			types.AnnotationSourceFile: path,
+		}))
 	}
 
 	if r.opts.ContentHash {
-		for i := range objects {
-			types.SetContentHash(&objects[i])
-		}
+		opts = append(opts, types.WithContentHash(true))
 	}
+
+	types.AnnotateObjects(objects, opts...)
 
 	return objects, nil
 }
