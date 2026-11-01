@@ -1,3 +1,8 @@
+// Renderer-level cache behavior: cache-hit render origins, per-source
+// output isolation, and custom and path-only key functions through
+// yaml.New and Process. Unit tests of the cache constructor and its
+// path-only default key live in pkg/cache.
+
 package yaml_test
 
 import (
