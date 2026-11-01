@@ -99,6 +99,23 @@ and content-hash/source-annotation options. Use `testing/fstest.MapFS` as
 immutable portable filesystem fixtures where possible, checked-in fixtures
 under `config/test/manifests`, Gomega assertions, and `t.Context()`.
 
+### Test simplicity
+
+Use the simplest test that proves the contract under test. Don't re-test
+standard-library internals, and don't add helpers, mocks, instrumentation,
+subprocesses, or extra test files unless a concrete behavior or regression
+requires them. Keep small suites cohesive in one test file; the
+[concern-suffixed layout](#test-layout) rules describe where a justified
+split goes, not a requirement to create those files.
+
+Keep fixtures proportional to the behavior under test: prefer the smallest
+`fstest.MapFS` or checked-in document set that exercises the actual loading
+contract, reuse existing fixtures before creating new ones, and don't
+invent speculative edge-case matrices. The malformed/empty/multi-document
+cases, ordering, selector, explicit cache-hit and source-isolation, nested
+result mutation, and concurrency evidence required above are unchanged by
+this rule.
+
 `make test/race` re-runs the unit suite under the race detector. The
 concurrency tests render overlapping requests against a single shared
 renderer with same-path sources, so run it whenever changing cache handling,

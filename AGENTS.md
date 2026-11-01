@@ -37,4 +37,4 @@ make check
 `make check` runs lint and vulnerability checks only; it does not run tests
 or formatting.
 
-Use `testing/fstest.MapFS` for unit tests, checked-in fixtures under `config/test/manifests`, Gomega assertions, and `t.Context()`.
+Use `testing/fstest.MapFS` for unit tests, checked-in fixtures under `config/test/manifests`, Gomega assertions, and `t.Context()`. Keep tests focused and simple: use the smallest filesystem fixture that exercises the loading behavior, and add helpers or extra test files only when a concrete behavior or regression requires them.
