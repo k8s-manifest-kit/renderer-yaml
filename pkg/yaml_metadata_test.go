@@ -466,8 +466,11 @@ func TestAnnotatedOutputReingestion(t *testing.T) {
 	serialized, err := json.Marshal(frozenFirst.Object)
 	g.Expect(err).ToNot(HaveOccurred(), "marshal annotated first output")
 
+	// The filesystem gets an independent copy of the serialized bytes so
+	// the final unchanged-bytes assertion compares against a snapshot that
+	// cannot alias an in-place mutation of the file data.
 	secondFS := fstest.MapFS{
-		"reingested.yaml": &fstest.MapFile{Data: serialized},
+		"reingested.yaml": &fstest.MapFile{Data: slices.Clone(serialized)},
 	}
 
 	// The expected hash covers the frozen object exactly as re-ingested,
