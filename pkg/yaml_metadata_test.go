@@ -1,9 +1,13 @@
 package yaml_test
 
 import (
+	"encoding/json"
+	"maps"
+	"slices"
 	"testing"
 	"testing/fstest"
 
+	engine "github.com/k8s-manifest-kit/engine/pkg"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 	"github.com/k8s-manifest-kit/pkg/util/k8s"
 
@@ -26,6 +30,43 @@ metadata:
     existing: annotation
     manifests.k8s-manifests-kit/content.hash: sha256:stale
     manifests.k8s-manifests-kit/render.origin: stale
+data:
+  key: value
+`
+
+// engineFirstConfigMapYAML and engineSecondConfigMapYAML are fixed,
+// independent fixtures for the engine-composition oracle. Their distinct
+// ConfigMap names distinguish the outputs of two real YAML renderers that
+// share the same renderer name.
+const engineFirstConfigMapYAML = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: engine-first-config
+data:
+  role: first
+`
+
+const engineSecondConfigMapYAML = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: engine-second-config
+data:
+  role: second
+`
+
+// reingestConfigMapYAML is a minimal ConfigMap with string data, a stable
+// name, and one ordinary user annotation. It is rendered with source
+// annotations disabled so its annotated output can be serialized and
+// re-ingested through the renderer's public file-loading path.
+const reingestConfigMapYAML = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reingest-config
+  annotations:
+    team: platform
 data:
   key: value
 `
@@ -319,4 +360,147 @@ func TestContentHash(t *testing.T) {
 			g.Expect(hash1).Should(Equal(hash2))
 		}
 	})
+}
+
+// deepCopyBatch returns deep copies of every object in the batch so
+// retained render results can be compared against frozen snapshots.
+func deepCopyBatch(objects []unstructured.Unstructured) []unstructured.Unstructured {
+	copies := make([]unstructured.Unstructured, len(objects))
+	for i := range objects {
+		copies[i] = *objects[i].DeepCopy()
+	}
+
+	return copies
+}
+
+// TestEngineHashPreservation pins that two independent real YAML renderers
+// produce, through the engine, exactly their directly rendered baselines —
+// content hashes and all provenance annotations included — on every call,
+// with caching and renderer hooks left disabled.
+func TestEngineHashPreservation(t *testing.T) {
+	g := NewWithT(t)
+
+	firstFS := fstest.MapFS{
+		"first.yaml": &fstest.MapFile{Data: []byte(engineFirstConfigMapYAML)},
+	}
+	secondFS := fstest.MapFS{
+		"second.yaml": &fstest.MapFile{Data: []byte(engineSecondConfigMapYAML)},
+	}
+
+	first, err := yaml.New(
+		[]yaml.Source{{FS: firstFS, Path: "first.yaml"}},
+		yaml.WithSourceAnnotations(true),
+	)
+	g.Expect(err).ToNot(HaveOccurred(), "first renderer construction")
+
+	second, err := yaml.New(
+		[]yaml.Source{{FS: secondFS, Path: "second.yaml"}},
+		yaml.WithSourceAnnotations(true),
+	)
+	g.Expect(err).ToNot(HaveOccurred(), "second renderer construction")
+
+	firstBaseline, err := first.Process(t.Context(), nil)
+	g.Expect(err).ToNot(HaveOccurred(), "first renderer direct Process")
+
+	secondBaseline, err := second.Process(t.Context(), nil)
+	g.Expect(err).ToNot(HaveOccurred(), "second renderer direct Process")
+
+	g.Expect(firstBaseline).To(HaveLen(1))
+	g.Expect(secondBaseline).To(HaveLen(1))
+	g.Expect(firstBaseline[0].GetAnnotations()).To(HaveKeyWithValue(
+		types.AnnotationContentHash,
+		MatchRegexp("^sha256:[0-9a-f]{64}$"),
+	), "first renderer baseline hash")
+	g.Expect(secondBaseline[0].GetAnnotations()).To(HaveKeyWithValue(
+		types.AnnotationContentHash,
+		MatchRegexp("^sha256:[0-9a-f]{64}$"),
+	), "second renderer baseline hash")
+
+	firstSnapshot := deepCopyBatch(firstBaseline)
+	secondSnapshot := deepCopyBatch(secondBaseline)
+
+	e, err := engine.New(engine.WithRenderer(first), engine.WithRenderer(second))
+	g.Expect(err).ToNot(HaveOccurred(), "engine construction with same-name renderers")
+
+	result1, err := e.Render(t.Context())
+	g.Expect(err).ToNot(HaveOccurred(), "first engine render")
+
+	result2, err := e.Render(t.Context())
+	g.Expect(err).ToNot(HaveOccurred(), "second engine render")
+
+	expected := slices.Concat(firstBaseline, secondBaseline)
+
+	g.Expect(result1).To(Equal(expected),
+		"first engine render matches the concatenated baselines")
+	g.Expect(result2).To(Equal(expected),
+		"second engine render matches the concatenated baselines")
+	g.Expect(firstBaseline).To(Equal(firstSnapshot),
+		"first baseline is unchanged by engine renders")
+	g.Expect(secondBaseline).To(Equal(secondSnapshot),
+		"second baseline is unchanged by engine renders")
+}
+
+// TestReingestAnnotatedOutput pins the exact one-hash behavior when the
+// actual annotated first-pass output is serialized and re-ingested through
+// the renderer's public file-loading path: the re-ingested object differs
+// from the frozen first object only in its content-hash annotation.
+func TestAnnotatedOutputReingestion(t *testing.T) {
+	g := NewWithT(t)
+
+	firstFS := fstest.MapFS{
+		"source.yaml": &fstest.MapFile{Data: []byte(reingestConfigMapYAML)},
+	}
+
+	firstRenderer, err := yaml.New([]yaml.Source{{FS: firstFS, Path: "source.yaml"}})
+	g.Expect(err).ToNot(HaveOccurred(), "first renderer construction")
+
+	firstPass, err := firstRenderer.Process(t.Context(), nil)
+	g.Expect(err).ToNot(HaveOccurred(), "first render")
+	g.Expect(firstPass).To(HaveLen(1))
+
+	frozenFirst := *firstPass[0].DeepCopy()
+	firstHash := frozenFirst.GetAnnotations()[types.AnnotationContentHash]
+	g.Expect(firstHash).To(MatchRegexp("^sha256:[0-9a-f]{64}$"),
+		"first render produces a content hash")
+
+	serialized, err := json.Marshal(frozenFirst.Object)
+	g.Expect(err).ToNot(HaveOccurred(), "marshal annotated first output")
+
+	secondFS := fstest.MapFS{
+		"reingested.yaml": &fstest.MapFile{Data: serialized},
+	}
+
+	// The expected hash covers the frozen object exactly as re-ingested,
+	// first hash included; it is not derived through SetContentHash or
+	// AnnotateObjects.
+	expectedHash := k8s.ContentHash(frozenFirst.DeepCopy())
+	g.Expect(expectedHash).NotTo(Equal(firstHash),
+		"hashing an already annotated object yields a different hash")
+
+	expectedSecond := *frozenFirst.DeepCopy()
+	expectedAnnotations := maps.Clone(frozenFirst.GetAnnotations())
+	expectedAnnotations[types.AnnotationContentHash] = expectedHash
+	expectedSecond.SetAnnotations(expectedAnnotations)
+
+	secondRenderer, err := yaml.New(
+		[]yaml.Source{{FS: secondFS, Path: "reingested.yaml"}},
+	)
+	g.Expect(err).ToNot(HaveOccurred(), "second renderer construction")
+
+	secondPass1, err := secondRenderer.Process(t.Context(), nil)
+	g.Expect(err).ToNot(HaveOccurred(), "first re-ingest render")
+	g.Expect(secondPass1).To(HaveLen(1))
+	g.Expect(secondPass1[0]).To(Equal(expectedSecond),
+		"first re-ingest render equals the one-hash expectation")
+
+	secondPass2, err := secondRenderer.Process(t.Context(), nil)
+	g.Expect(err).ToNot(HaveOccurred(), "second re-ingest render")
+	g.Expect(secondPass2).To(HaveLen(1))
+	g.Expect(secondPass2[0]).To(Equal(expectedSecond),
+		"second re-ingest render equals the one-hash expectation")
+
+	g.Expect(firstPass[0]).To(Equal(frozenFirst),
+		"first-pass object is unchanged by re-ingest renders")
+	g.Expect(secondFS["reingested.yaml"].Data).To(Equal(serialized),
+		"re-ingested source bytes are unchanged")
 }
