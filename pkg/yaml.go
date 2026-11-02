@@ -91,7 +91,14 @@ func New(inputs []Source, opts ...RendererOption) (*Renderer, error) {
 
 // Process executes the rendering logic for all configured inputs.
 // Render-time values are ignored by the YAML renderer as it does not support templates.
+//
+// A nil *Renderer returns types.ErrRendererNil with no objects instead of
+// panicking; Name and the constructors are unaffected by a nil receiver.
 func (r *Renderer) Process(ctx context.Context, _ types.Values) ([]unstructured.Unstructured, error) {
+	if r == nil {
+		return nil, types.ErrRendererNil
+	}
+
 	allObjects := make([]unstructured.Unstructured, 0)
 
 	for _, holder := range r.inputs {

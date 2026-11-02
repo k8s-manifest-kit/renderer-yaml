@@ -1,14 +1,18 @@
 package yaml_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"testing/fstest"
 
 	"github.com/k8s-manifest-kit/engine/pkg/filter/meta/gvk"
 	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/labels"
+	"github.com/k8s-manifest-kit/engine/pkg/types"
 	jqmatcher "github.com/lburgazzoli/gomega-matchers/pkg/matchers/jq"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	yaml "github.com/k8s-manifest-kit/renderer-yaml/pkg"
 
@@ -169,4 +173,48 @@ func TestRenderer(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(objects).To(HaveLen(2))
 	})
+}
+
+// TestProcessNilRenderer verifies that a typed-nil YAML Renderer answers the
+// sentinel instead of panicking when Process is called directly.
+func TestProcessNilRenderer(t *testing.T) {
+	g := NewWithT(t)
+
+	var renderer *yaml.Renderer
+
+	objects, err := renderer.Process(t.Context(), nil)
+
+	g.Expect(err).To(MatchError(types.ErrRendererNil))
+	g.Expect(objects).To(BeNil())
+}
+
+// TestSourcePostRendererChainIndex verifies that a failing source-specific
+// post-renderer reports the adopted engine chain index while preserving the
+// cause and the YAML pattern context.
+func TestSourcePostRendererChainIndex(t *testing.T) {
+	g := NewWithT(t)
+
+	errHook := errors.New("hook failed")
+
+	renderer, err := yaml.New([]yaml.Source{
+		{
+			FS:   fstest.MapFS{"pod.yaml": &fstest.MapFile{Data: []byte(podYAML)}},
+			Path: "*.yaml",
+			PostRenderers: []types.PostRenderer{
+				func(_ context.Context, _ []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+					return nil, errHook
+				},
+			},
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	objects, err := renderer.Process(t.Context(), nil)
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(errors.Is(err, errHook)).To(BeTrue(), "the hook cause stays discoverable")
+	g.Expect(err.Error()).To(ContainSubstring("post-renderer error at chain index 0"))
+	g.Expect(err.Error()).To(ContainSubstring("source post-renderer error"))
+	g.Expect(err.Error()).To(ContainSubstring("*.yaml"))
+	g.Expect(objects).To(BeNil())
 }
